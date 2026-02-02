@@ -2,6 +2,8 @@
 name = "bearbridge"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"  # This is the standard string for dual-licensing
+description = "High-performance Rust-Polars bridge for conditional joins in Python."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
