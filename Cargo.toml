@@ -1,0 +1,22 @@
+[package]
+name = "bearbridge"
+version = "0.1.0"
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "low_level_bearbridge"
+crate-type = ["cdylib"]
+
+[dependencies]
+polars = { version = "0.52.0", features = ["lazy", "dtype-full", "cross_join", "timezones", "iejoin", "abs"] }
+polars-arrow = { version = "0.52.0", features = ["full"] }
+arrow = { version = "57.2.0", features = ["pyarrow", "ffi"] }
+pyo3 = { version = "0.26.0"}
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
+
+[features]
+# This feature will only be used when building the final Python library
+extension-module = ["pyo3/extension-module"]
+default = []

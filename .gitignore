@@ -1,0 +1,40 @@
+# --- Rust / Cargo ---
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.venv
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Build Tools (Maturin / Setuptools) ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- IDEs / Editors ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# --- Data / Testing ---
+*.csv
+*.parquet
+*.arrow
+# Ignore large test datasets but keep the directory if needed
+tests/data/*
+!tests/data/.gitkeep
