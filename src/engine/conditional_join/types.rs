@@ -26,7 +26,7 @@ pub enum Condition {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TimeUnit {
     Days,
     Hours,
@@ -145,4 +145,145 @@ pub fn str_to_join_type(s: &str) -> Result<JoinType, BearBridgeError> {
         _ => return Err(BearBridgeError::InvalidJoinType(s.to_string())),
     };
     Ok(jt)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+    use polars::prelude::JoinType;
+    #[test]
+    fn test_condition_cols_and_operators() {
+        // Test Standard variant
+        let c1 = Condition::Standard {
+            left_col: "user_id".to_string(),
+            right_col: "id".to_string(),
+            op: "==".to_string(),
+        };
+        assert_eq!(c1.cols(), ("user_id", "id"));
+        assert_eq!(c1.operator(), "==");
+
+        // Test Difference variant
+        let c2 = Condition::Difference {
+            left_col: "price".to_string(),
+            right_col: "cost".to_string(),
+            op: ">".to_string(),
+            thr: 10.5,
+        };
+        assert_eq!(c2.cols(), ("price", "cost"));
+        assert_eq!(c2.operator(), ">");
+    }
+
+    #[test]
+    fn test_condition_options_conversion() {
+        // 1. Test Standard -> Standard
+        let c_std = Condition::Standard {
+            left_col: "a".into(),
+            right_col: "b".into(),
+            op: "==".into(),
+        };
+        match c_std.options().unwrap() {
+            JoinOptions::Standard => (),
+            _ => panic!("Expected JoinOptions::Standard"),
+        }
+
+        // 2. Test TimeDifference -> TimeDifference with TimeUnit parsing
+        let c_time = Condition::TimeDifference {
+            left_col: "t1".into(),
+            right_col: "t2".into(),
+            op: "<".into(),
+            thr: 5.0,
+            time_unit: "s".into(), // Testing string "s" parses to Seconds
+        };
+
+        let opts = c_time.options().unwrap();
+        if let JoinOptions::TimeDifference { thr, time_unit } = opts {
+            assert_eq!(thr, 5.0);
+            assert_eq!(time_unit, TimeUnit::Seconds);
+        } else {
+            panic!("Expected JoinOptions::TimeDifference");
+        }
+    }
+
+    #[test]
+    fn test_invalid_time_unit_fails() {
+        let c_bad = Condition::TimeDifference {
+            left_col: "t1".into(),
+            right_col: "t2".into(),
+            op: "<".into(),
+            thr: 5.0,
+            time_unit: "invalid_unit".into(),
+        };
+
+        // This should return a BearBridgeError because of TimeUnit::from_str
+        assert!(c_bad.options().is_err());
+    }
+
+    #[test]
+    fn test_time_unit_from_str() {
+        // Test abbreviations
+        assert_eq!(TimeUnit::from_str("d").unwrap(), TimeUnit::Days);
+        assert_eq!(TimeUnit::from_str("h").unwrap(), TimeUnit::Hours);
+        assert_eq!(TimeUnit::from_str("m").unwrap(), TimeUnit::Minutes);
+        assert_eq!(TimeUnit::from_str("s").unwrap(), TimeUnit::Seconds);
+        assert_eq!(TimeUnit::from_str("ms").unwrap(), TimeUnit::Milliseconds);
+
+        // Test full names and case insensitivity
+        assert_eq!(TimeUnit::from_str("DAYS").unwrap(), TimeUnit::Days);
+        assert_eq!(TimeUnit::from_str("Minutes").unwrap(), TimeUnit::Minutes);
+        assert_eq!(TimeUnit::from_str("milliseconds").unwrap(), TimeUnit::Milliseconds);
+
+        // Test invalid unit
+        let result = TimeUnit::from_str("weeks");
+        assert!(result.is_err());
+        if let Err(BearBridgeError::InvalidTimeUnit(msg)) = result {
+            assert_eq!(msg, "weeks");
+        } else {
+            panic!("Expected InvalidTimeUnit error");
+        }
+    }
+
+    #[test]
+    fn test_time_unit_to_nanos() {
+        // Base units
+        assert_eq!(TimeUnit::Milliseconds.to_nanos(), 1_000_000);
+        assert_eq!(TimeUnit::Seconds.to_nanos(), 1_000_000_000);
+
+        // Calculated units
+        assert_eq!(TimeUnit::Minutes.to_nanos(), 60_000_000_000);
+        assert_eq!(TimeUnit::Hours.to_nanos(), 3_600_000_000_000);
+
+        // Large unit (Days)
+        // 24 * 60 * 60 * 10^9 = 86,400,000,000,000
+        assert_eq!(TimeUnit::Days.to_nanos(), 86_400_000_000_000);
+    }
+
+    #[test]
+    fn test_str_to_join_type_mappings() {
+        // Test standard mappings
+        assert_eq!(str_to_join_type("inner").unwrap(), JoinType::Inner);
+        assert_eq!(str_to_join_type("left").unwrap(), JoinType::Left);
+
+        // Test aliases for Full join
+        assert_eq!(str_to_join_type("full").unwrap(), JoinType::Full);
+        assert_eq!(str_to_join_type("outer").unwrap(), JoinType::Full);
+
+        // Test case insensitivity
+        assert_eq!(str_to_join_type("INNER").unwrap(), JoinType::Inner);
+        assert_eq!(str_to_join_type("OuTeR").unwrap(), JoinType::Full);
+    }
+
+    #[test]
+    fn test_str_to_join_type_error() {
+        // Test invalid join type string
+        let result = str_to_join_type("semi");
+        assert!(result.is_err());
+
+        if let Err(BearBridgeError::InvalidJoinType(msg)) = result {
+            assert_eq!(msg, "semi");
+        } else {
+            panic!("Expected InvalidJoinType error");
+        }
+    }
 }
