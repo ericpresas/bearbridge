@@ -3,16 +3,18 @@ import bearbridge # Your compiled module
 import pandas as pd
 import numpy as np
 import time
+from bearbridge.core.conditional_join.validate import JoinConditionDict
+from typing import List
 
 def test_join():
     # 1. Create Arrow Tables
-    left_table = pa.table({
+    left_table = pd.DataFrame({
         "id": [1, 2, 3],
         "name": ["apple", "banana", "cherry"],
         "val": [100, 200, 300]
     })
 
-    right_table = pa.table({
+    right_table = pd.DataFrame({
         "id_a": [2, 3, 4],
         "tag": ["B", "C", "D"],
         "score": [0.5, 0.8, 1.2]
@@ -20,14 +22,14 @@ def test_join():
 
     # 2. Define Join Conditions (matching your Condition enum)
     # Using 'type' as the Serde tag we defined earlier
-    conditions = [
+    conditions: List[JoinConditionDict] = [
         {"op": "==", "left_col": "id", "right_col": "id_a"}
     ]
 
     print("--- Executing Join ---")
     try:
         # Call the renamed function
-        result = bearbridge.conditional_join(
+        df = bearbridge.core.join(
             left_table.to_batches(),
             right_table.to_batches(),
             conditions,
@@ -35,7 +37,6 @@ def test_join():
         )
 
         # 3. Inspect Results
-        df = pa.Table.from_batches(batches=result).to_pandas()
         print(df)
 
         # Verify schema/data
@@ -65,16 +66,9 @@ def mock_large_dfs(N: int):
     return pd.DataFrame(left_data), pd.DataFrame(right_data)
 
 def test_large(left_df, right_df):
-    # 1. Configuration
-    left_table = pa.Table.from_pandas(left_df)
-
-    right_table = pa.Table.from_pandas(right_df)
-
-    print(f"Left Unit: {left_table.schema.field('timestamp').type.unit}")
-    print(f"Right Unit: {right_table.schema.field('timestamp').type.unit}")
 
     # Define the conditions using your new dictionary format
-    conditions = [
+    conditions: List[JoinConditionDict] = [
         {
             "left_col": "user_id",
             "right_col": "id",
@@ -93,16 +87,12 @@ def test_large(left_df, right_df):
 
     # Perform the join using the batches approach
     # We use .to_batches() to satisfy the PyArrowType<Vec<RecordBatch>> requirement
-    results_raw = bearbridge.conditional_join(
-        left_table.to_batches(),
-        right_table.to_batches(),
+    result_df = bearbridge.core.join(
+        left_df,
+        right_df,
         conditions,
         "inner"
     )
-
-    # Reconstruct and convert to Pandas
-    result_df = pa.Table.from_batches(results_raw).to_pandas(types_mapper=None)
-
 
     end_time = time.perf_counter()
     print(f"Join completed in {end_time - start_time:.4f} seconds.")
@@ -131,12 +121,3 @@ if __name__ == "__main__":
     left_df, right_df = mock_large_dfs(1_000_000)
     df1 = test_large(left_df, right_df)
     df2 = test_pure_pandas(left_df, right_df)
-
-    result = pd.merge(
-        df2,
-        df1,
-        how="left",
-        on=["id","user_id"],
-        suffixes=("", "_pl")
-    )
-    print()

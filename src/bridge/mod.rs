@@ -14,7 +14,10 @@ use crate::engine::conditional_join::{execute_join, Condition};
 
 
 #[pyfunction (name = "conditional_join")]
-#[pyo3(signature = (left, right, conditions, how="inner"))]
+#[pyo3(
+    signature = (left, right, conditions, how="inner"),
+    text_signature = "(left: pyarrow.Table, right: pyarrow.Table, conditions: list[dict], how: str = 'inner') -> pyarrow.Table"
+)]
 pub fn py_conditional_join<'py>(
     py: Python<'py>,
     left: PyArrowType<Vec<RecordBatch>>,
