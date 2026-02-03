@@ -79,17 +79,12 @@ fn bridge_to_polars(batches: Vec<RecordBatch>) -> PyResult<DataFrame> {
         for batch in batches.iter() {
             let arrow_col = batch.column(i).clone();
 
-            let mut out_array = ArrowArray::empty();
-            let mut out_schema = ArrowSchema::empty();
+            // 1. Export from arrow-rs using the new API
+            let out_schema = ArrowSchema::try_from(arrow_col.data_type())
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            let out_array = ArrowArray::new(&arrow_col.to_data());
 
             unsafe {
-                // 1. Export from arrow-rs
-                arrow::ffi::export_array_into_raw(
-                    arrow_col,
-                    &mut out_array as *mut _,
-                    &mut out_schema as *mut _,
-                ).map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
                 // 2. Step A: Convert Schema to DataType
                 // We cast our local pointer to a polars_arrow pointer, then dereference it to get &ArrowSchema
                 let polars_ffi_schema = &*(&out_schema as *const _ as *const ffi::ArrowSchema);
@@ -207,7 +202,7 @@ fn bridge_to_arrow_rs(df: DataFrame) -> PyResult<Vec<RecordBatch>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{Int32Array, StringArray};
+    use arrow::array::{Int32Array, StringArray, Float64Array, BooleanArray};
     use arrow::datatypes::{DataType, Field, Schema};
     use arrow::record_batch::RecordBatch;
     use std::sync::Arc;
@@ -301,5 +296,91 @@ mod tests {
         assert_eq!(str_col.value(1), "banana");
 
         println!("✅ Bridge test passed! Resulting batch:\n{:?}", batch);
+    }
+
+    #[test]
+    fn test_empty_input() {
+        // Test that an empty vector of batches returns an empty DataFrame
+        let batches = vec![];
+        let result = bridge_to_polars(batches);
+        assert!(result.is_ok());
+        let df = result.unwrap();
+        assert!(df.is_empty());
+
+        // Test that an empty DataFrame returns an empty vector of batches
+        let result_back = bridge_to_arrow_rs(df);
+        assert!(result_back.is_ok());
+        let batches_back = result_back.unwrap();
+        assert!(batches_back.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_chunks_concatenation() {
+        // Create two batches with the same schema
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("val", DataType::Int32, true),
+        ]));
+
+        let batch1 = RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(Int32Array::from(vec![1, 2]))],
+        ).unwrap();
+
+        let batch2 = RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(Int32Array::from(vec![3, 4]))],
+        ).unwrap();
+
+        // Bridge to Polars
+        let df = bridge_to_polars(vec![batch1, batch2]).unwrap();
+
+        // Should have 4 rows total
+        assert_eq!(df.height(), 4);
+        
+        // Check values
+        let col = df.column("val").unwrap().i32().unwrap();
+        assert_eq!(col.get(0), Some(1));
+        assert_eq!(col.get(1), Some(2));
+        assert_eq!(col.get(2), Some(3));
+        assert_eq!(col.get(3), Some(4));
+    }
+
+    #[test]
+    fn test_various_types_round_trip() {
+        // Test Float64 and Boolean
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("floats", DataType::Float64, true),
+            Field::new("bools", DataType::Boolean, true),
+        ]));
+
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(Float64Array::from(vec![1.1, 2.2, 3.3])),
+                Arc::new(BooleanArray::from(vec![true, false, true])),
+            ],
+        ).unwrap();
+
+        // Arrow -> Polars
+        let df = bridge_to_polars(vec![batch.clone()]).unwrap();
+        assert_eq!(df.height(), 3);
+        assert_eq!(df.column("floats").unwrap().dtype(), &polars::prelude::DataType::Float64);
+        assert_eq!(df.column("bools").unwrap().dtype(), &polars::prelude::DataType::Boolean);
+
+        // Polars -> Arrow
+        let batches_back = bridge_to_arrow_rs(df).unwrap();
+        assert_eq!(batches_back.len(), 1);
+        
+        let batch_back = &batches_back[0];
+        
+        // Verify Floats
+        let floats_back = batch_back.column(0).as_any().downcast_ref::<Float64Array>().unwrap();
+        assert_eq!(floats_back.value(0), 1.1);
+        assert_eq!(floats_back.value(1), 2.2);
+        
+        // Verify Bools
+        let bools_back = batch_back.column(1).as_any().downcast_ref::<BooleanArray>().unwrap();
+        assert_eq!(bools_back.value(0), true);
+        assert_eq!(bools_back.value(1), false);
     }
 }
