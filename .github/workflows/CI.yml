@@ -25,7 +25,11 @@ jobs:
           python-version: '3.11'
 
       - name: Rust Unit Tests
+        env:
+          # This forces PyO3 to use the Python we just installed in the CI
+          PYO3_PYTHON: python
         run: cargo test --release
+
 
       - name: Python Integration Tests
         run: |

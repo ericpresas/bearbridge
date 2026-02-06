@@ -1,3 +1,0 @@
-[env]
-# This tells PyO3: "I'm just testing, don't look for the Python DLL"
-PYO3_CONFIG_FILE = "/home/eric/RustProjects/bearbridge/pyo3-build-config-dummy.txt"
