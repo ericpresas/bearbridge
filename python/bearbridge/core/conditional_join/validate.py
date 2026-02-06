@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Literal, Union, TypedDict
+from typing import Optional, Literal, Union, TypedDict, List, Dict
 
 # Define types for IDE support
 Operator = Literal[">", "<", ">=", "<=", "==", "!=", "weekday", "fuzzy"]
@@ -14,7 +14,7 @@ class JoinConditionDict(TypedDict):
     thr: Optional[float]
     time_unit: Optional[str]
 
-@dataclass(frozen=True)
+@dataclass
 class JoinCondition:
     left_col: str
     right_col: str
@@ -23,6 +23,10 @@ class JoinCondition:
     time_unit: Optional[TimeUnit] = None
 
     def __post_init__(self):
+        """
+        Performs Early condition validations after instance class is created.
+
+        """
         if self.op not in {">", "<", ">=", "<=", "==", "!=", "weekday", "fuzzy"}:
             raise ValueError(f"Unsupported operator '{self.op}'. Valid: {Operator}")
 
@@ -33,10 +37,26 @@ class JoinCondition:
         if self.thr is not None and not isinstance(self.thr, (int, float)):
             raise TypeError(f"Threshold 'thr' must be a number, got {type(self.thr).__name__}.")
 
-    def to_dict(self) -> dict:
+    def validate_cols(self, left_cols: List[str], right_cols: List[str]) -> None:
         """
-        Converts the object back to a dict for the Rust bridge.
-        """
+        Validate columns in conditions available in dataframe.
+        Args:
+            left_cols (List[str]): List of column names.
+            right_cols (List[str]): List of column names.
 
-        # Removes None values so the Rust enum mapper doesn't get confused
-        return {k: v for k, v in self.__dict__.items() if v is not None}
+        Returns:
+
+        """
+        if self.left_col not in left_cols:
+            raise KeyError(f"Column '{self.left_col}' not in 'left'.")
+
+        if self.right_col not in right_cols:
+            raise KeyError(f"Column '{self.right_col}' not in 'right'.")
+
+    def to_typed_dict(self) -> JoinConditionDict:
+        pure_dict = {}
+        for key, item in self.__dict__.items():
+            if item is not None:
+                pure_dict[key] = item
+        return JoinConditionDict(**pure_dict)
+
