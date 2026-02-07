@@ -33,9 +33,13 @@ jobs:
 
       - name: Python Integration Tests
         run: |
-          pip install maturin pandas pyarrow numpy pytest
-          maturin develop  # Compiles and installs the bridge locally
-          pytest tests/    # Runs your benchmark and logic checks
+          pip install pandas pyarrow numpy pytest maturin
+          pip install . 
+          
+          # --- SANITY CHECK ---
+          python -c "import bearbridge; print('Rust Bridge Loaded Successfully!')"
+          
+          pytest python/tests/
 
   # --- JOB 2: Build Wheels (Only runs on Tags) ---
   build_wheels:
