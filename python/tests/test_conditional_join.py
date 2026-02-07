@@ -32,7 +32,7 @@ def generate_realistic_bench_data(n_rows=1_000_000):
 
     return left_df, right_df
 
-def benchmark_join():
+def test_benchmark_join():
     L, R = generate_realistic_bench_data(1_000_000)
 
     # Condition: Same ID AND Timestamps within 5 seconds of each other
@@ -63,5 +63,4 @@ def benchmark_join():
 
     print(f"\nSpeedup: {pd_time / bear_time:.2f}x")
 
-if __name__ == "__main__":
-    benchmark_join()
+    assert pd_time > bear_time, "Lack of performance"
