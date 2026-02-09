@@ -1,5 +1,5 @@
-from bearbridge.bear_bridge_engine import conditional_join
+from bearbridge.bear_bridge_engine import conditional_join, conditional_join_stream
 from bearbridge import core
 
-__all__ = ["conditional_join"]
+__all__ = ["conditional_join", "conditional_join_stream"]
 

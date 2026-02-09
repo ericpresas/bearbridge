@@ -1,6 +1,6 @@
 use super::*;
 use polars::prelude::*;
-use crate::engine::conditional_join::types::{Condition, TimeUnit};
+use crate::engine::conditional_join::types::Condition;
 
 // Helper to create a basic DataFrame
 fn create_test_df() -> DataFrame {
@@ -24,7 +24,7 @@ fn test_standard_inner_join() -> Result<(), Box<dyn std::error::Error>> {
         op: "==".to_string(),
     }];
 
-    let result = execute_join(df1, df2, conditions, "inner")?;
+    let result = execute_join(&df1, &df2, &conditions, "inner")?;
 
     // Standard join on 1, 2, 3 should return 3 rows
     println!("{:?}", result);
@@ -47,7 +47,7 @@ fn test_difference_threshold_join() -> Result<(), Box<dyn std::error::Error>> {
         thr: 3.0,
     }];
 
-    let result = execute_join(df1, df2, conditions, "inner")?;
+    let result = execute_join(&df1, &df2, &conditions, "inner")?;
 
     assert_eq!(result.height(), 1);
     assert_eq!(result.column("val_right")?.f64()?.get(0), Some(12.0));
@@ -69,7 +69,7 @@ fn test_time_difference_join() -> Result<(), Box<dyn std::error::Error>> {
         time_unit: "seconds".to_string(),
     }];
 
-    let result = execute_join(df1, df2, conditions, "inner")?;
+    let result = execute_join(&df1, &df2, &conditions, "inner")?;
 
     // Only the 1.5s record is within 1s of the 1s record.
     assert_eq!(result.height(), 1);
